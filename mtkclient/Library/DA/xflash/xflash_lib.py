@@ -164,7 +164,7 @@ class DAXFlash(metaclass=LogBase):
                 length = len(param)
                 pos = 0
                 while length > 0:
-                    dsize = min(length, 0x200)
+                    dsize = min(length, 0x2000000)
                     if not self.usbwrite(param[pos:pos + dsize]):
                         break
                     pos += dsize
@@ -266,9 +266,11 @@ class DAXFlash(metaclass=LogBase):
             bytestowrite = len(data)
             pos = 0
             while bytestowrite > 0:
-                if self.usbwrite(data[pos:pos + 64]):
-                    pos += 64
-                    bytestowrite -= 64
+                dsize = min(bytestowrite, 0x2000000)
+                if not self.usbwrite(data[pos:pos + dsize]):
+                    break
+                pos += dsize
+                bytestowrite -= dsize
             status = self.status()  # 0xC0070004
             if status == 0x0:
                 return True

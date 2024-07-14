@@ -39,10 +39,10 @@ sys.excepthook = trap_exc_during_debug
 # Initiate MTK classes
 variables = mock.Mock()
 variables.cmd = "stage"
-variables.debugmode = True
+variables.serialport = 'DETECT'
+
 path = PathConfig()
-# if sys.platform.startswith('darwin'):
-#    config.ptype = "kamakiri" #Temp for Mac testing
+
 MtkTool = Main(variables)
 
 guiState = "welcome"
@@ -57,14 +57,14 @@ class DeviceHandler(QObject):
 
     def __init__(self, parent, preloader: str = None, loglevel=logging.INFO, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
-        config = MtkConfig(loglevel=logging.INFO, gui=self.sendToLogSignal, guiprogress=self.sendToProgressSignal,
+        config = MtkConfig(loglevel=loglevel, gui=self.sendToLogSignal, guiprogress=self.sendToProgressSignal,
                            update_status_text=self.update_status_text)
         config.gpt_settings = GptSettings(gpt_num_part_entries='0', gpt_part_entry_size='0',
                                           gpt_part_entry_start_lba='0')  # This actually sets the right GPT settings..
         config.reconnect = True
         config.uartloglevel = 2
-        self.loglevel = logging.DEBUG
-        self.da_handler = DaHandler(Mtk(config=config, loglevel=logging.INFO), loglevel)
+        self.loglevel = loglevel
+        self.da_handler = DaHandler(Mtk(config=config, loglevel=loglevel, serialportname='DETECT'), loglevel)
 
 
 def getDevInfo(self, parameters):

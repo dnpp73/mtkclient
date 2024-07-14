@@ -22,7 +22,7 @@ class Port(metaclass=LogBase):
             self.pid = pid
 
     def __init__(self, mtk, portconfig, serialportname: str = None, loglevel=logging.INFO):
-        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger, 
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger,
                                                                                   loglevel, mtk.config.gui)
         self.config = mtk.config
         self.mtk = mtk
@@ -72,7 +72,9 @@ class Port(metaclass=LogBase):
         try:
             while i < length:
                 if ep_out(int.to_bytes(startcmd[i], 1, 'little')):
+                    time.sleep(0.01)
                     v = ep_in(1, timeout=20)  # Do not wait 1 sec, bootloader is only active for 0.3 sec.
+                    time.sleep(0.01)
                     if len(v) == 1 and v[0] == ~(startcmd[i]) & 0xFF:
                         i += 1
                     else:

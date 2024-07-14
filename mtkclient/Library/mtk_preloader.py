@@ -399,12 +399,11 @@ class Preloader(metaclass=LogBase):
                 length = len(data)
                 pos = 0
                 while length > 0:
-                    dsize = min(length, 0x200)
+                    dsize = min(length, 0x2000000)
                     if not self.usbwrite(data[pos:pos + dsize]):
                         break
                     pos += dsize
                     length -= dsize
-                # self.usbwrite(data)
                 self.usbwrite(pack(">I", checksum))
 
     def setreg_disablewatchdogtimer(self, hwcode, hwver):
@@ -836,8 +835,9 @@ class Preloader(metaclass=LogBase):
         bytestowrite = len(data)
         pos = 0
         while bytestowrite > 0:
-            _sz = min(bytestowrite, 64)
-            self.usbwrite(data[pos:pos + _sz])
+            _sz = min(bytestowrite, 0x2000000)
+            if not self.usbwrite(data[pos:pos + _sz]):
+                break
             bytestowrite -= _sz
             pos += _sz
         self.usbwrite(b"")
