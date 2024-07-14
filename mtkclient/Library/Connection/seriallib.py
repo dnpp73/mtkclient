@@ -51,7 +51,7 @@ class SerialClass(DeviceClass):
             self.debug("Got port: {}, initializing".format(port))
             self.device = serial.Serial(port=port, baudrate=115200, bytesize=serial.EIGHTBITS,
                                         parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                                        timeout=500,
+                                        timeout=500, write_timeout=500,
                                         xonxoff=False, dsrdtr=False, rtscts=False)
             self.portname = port
         else:
@@ -74,20 +74,20 @@ class SerialClass(DeviceClass):
     def set_fast_mode(self, enabled):
         pass
 
-    def change_baud(self):
-        print("Changing Baudrate")
-        self.write(b'\xD2' + b'\x02' + b'\x01')
-        self.read(1)
-        self.write(b'\x5a')
-        # self.read(1)
-        self.device.baudrate = 460800
-        time.sleep(0.2)
-        for i in range(10):
-            self.write(b'\xc0')
-            self.read(1)
-            time.sleep(0.02)
-        self.write(b'\x5a')
-        self.read(1)
+    # def change_baud(self):
+    #     print("Changing Baudrate")
+    #     self.write(b'\xD2' + b'\x02' + b'\x01')
+    #     self.read(1)
+    #     self.write(b'\x5a')
+    #     # self.read(1)
+    #     self.device.baudrate = 460800
+    #     time.sleep(0.2)
+    #     for i in range(10):
+    #         self.write(b'\xc0')
+    #         self.read(1)
+    #         time.sleep(0.02)
+    #     self.write(b'\x5a')
+    #     self.read(1)
 
     def close(self, reset=False):
         if self.connected:
@@ -131,45 +131,42 @@ class SerialClass(DeviceClass):
         pos = 0
         if command == b'':
             try:
+                self.wait_for_ready()
                 self.device.write(b'')
+                self.wait_for_ready()
             except Exception as err:
-                error = str(err)
-                if "timeout" in error:
-                    # time.sleep(0.01)
-                    try:
-                        self.device.write(b'')
-                    except Exception as err:
-                        self.debug(str(err))
-                        return False
-                return True
+                self.error(str(err))
+                self.device.reset_output_buffer()
+                self.device.flush()
+                return False
         else:
-            i = 0
             while pos < len(command):
                 try:
+                    self.wait_for_ready()
                     ctr = self.device.write(command[pos:pos + pktsize])
+                    self.wait_for_ready()
                     if ctr <= 0:
                         self.info(ctr)
                     pos += pktsize
                 except Exception as err:
-                    self.debug(str(err))
-                    # print("Error while writing")
-                    # time.sleep(0.01)
-                    i += 1
-                    if i == 3:
-                        return False
-                    pass
-        self.verify_data(bytearray(command), "TX:")
-        self.device.flushOutput()
-        # timeout = 0
-        time.sleep(0.005)
-        """
-        while self.device.in_waiting == 0:
-            time.sleep(0.005)
-            timeout+=1
-            if timeout==10:
-                break
-        """
+                    self.error(str(err))
+                    self.device.reset_output_buffer()
+                    self.device.flush()
+                    return False
+
+        if self.loglevel == logging.DEBUG:
+            self.verify_data(bytearray(command), "TX:")
+
         return True
+
+    def wait_for_ready(self):
+        if self.device.out_waiting == 0:
+            return
+        self.device.flush()
+        # time.sleep(0.001)
+        while self.device.out_waiting != 0:
+            # time.sleep(0.001)
+            pass
 
     def read(self, length=None, timeout=-1):
         if timeout == -1:
@@ -183,8 +180,8 @@ class SerialClass(DeviceClass):
                 length = self.device.in_waiting
         return self.usbread(resplen=length, maxtimeout=timeout)
 
-    def get_device(self):
-        return self.device
+    # def get_device(self):
+    #     return self.device
 
     def get_read_packetsize(self):
         return 0x200
@@ -192,23 +189,22 @@ class SerialClass(DeviceClass):
     def get_write_packetsize(self):
         return 0x200
 
-    def flush(self):
-        if self.get_device() is not None:
-            self.device.flushOutput()
-        return self.device.flush()
+    # def flush(self):
+    #     if self.get_device() is not None:
+    #         self.device.flushOutput()
+    #     return self.device.flush()
 
     def usbread(self, resplen=None, maxtimeout=0, timeout=0, w_max_packet_size=None):
         # print("Reading {} bytes".format(resplen))
         if timeout == 0 and maxtimeout != 0:
             timeout = maxtimeout / 1000  # Some code calls this with ms delays, some with seconds.
-        if timeout < 0.02:
-            timeout = 0.02
+        if timeout < 1:
+            timeout = 1
         if resplen is None:
             resplen = self.device.in_waiting
         if resplen <= 0:
             self.info("Warning !")
         res = bytearray()
-        loglevel = self.loglevel
         if self.device is None:
             return b""
         self.device.timeout = timeout
@@ -250,16 +246,15 @@ class SerialClass(DeviceClass):
                     self.info(repr(e))
                     return b""
 
-        if loglevel == logging.DEBUG:
+        if self.loglevel == logging.DEBUG:
             self.debug(inspect.currentframe().f_back.f_code.co_name + ":" + hex(resplen))
-            if self.loglevel == logging.DEBUG:
-                self.verify_data(res[:resplen], "RX:")
+            self.verify_data(res[:resplen], "RX:")
+
         return res[:resplen]
 
     def usbxmlread(self, timeout=0):
         resplen = self.device.in_waiting
         res = bytearray()
-        loglevel = self.loglevel
         self.device.timeout = timeout
         epr = self.device.read
         extend = res.extend
@@ -289,21 +284,19 @@ class SerialClass(DeviceClass):
                     self.info(repr(e))
                     return b""
 
-        if loglevel == logging.DEBUG:
+        if self.loglevel == logging.DEBUG:
             self.debug(inspect.currentframe().f_back.f_code.co_name + ":" + hex(resplen))
-            if self.loglevel == logging.DEBUG:
-                self.verify_data(res[:resplen], "RX:")
+            self.verify_data(res[:resplen], "RX:")
+
         return res[:resplen]
 
     def usbwrite(self, data, pktsize=None):
         if pktsize is None:
             pktsize = len(data)
         res = self.write(data, pktsize)
-        self.device.flush()
         return res
 
     def usbreadwrite(self, data, resplen):
         self.usbwrite(data)  # size
-        self.device.flush()
         res = self.usbread(resplen)
         return res
